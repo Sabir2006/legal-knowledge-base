@@ -20,6 +20,7 @@ MONTHS_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
 # Получаем переменные из секретов GitHub
 OPEN_WEBUI_API_KEY = os.environ.get("OPEN_WEBUI_API_KEY")
 OPEN_WEBUI_URL = os.environ.get("OPEN_WEBUI_URL")
+OPEN_WEBUI_KNOWLEDGE_ID = os.environ.get("OPEN_WEBUI_KNOWLEDGE_ID")
 
 def get_soup(url):
     try:
@@ -38,25 +39,43 @@ def upload_to_open_webui(filepath):
     filename = os.path.basename(filepath)
     logging.info(f"Отправка {filename} в Open WebUI...")
     
-    # Стыкуем URL API Open WebUI
     base_url = OPEN_WEBUI_URL.rstrip('/')
-    url = f"{base_url}/api/v1/files/"
+    upload_url = f"{base_url}/api/v1/files/"
     
     headers = {
         "Authorization": f"Bearer {OPEN_WEBUI_API_KEY}"
     }
     
     try:
+        # Шаг 1: Загружаем файл на сервер
         with open(filepath, 'rb') as f:
             files = {
                 'file': (filename, f, 'text/markdown' if filename.endswith('.md') else 'application/pdf')
             }
-            response = requests.post(url, headers=headers, files=files, timeout=60)
+            response = requests.post(upload_url, headers=headers, files=files, timeout=60)
             response.raise_for_status()
-            logging.info(f"Файл {filename} успешно импортирован в Open WebUI! Ответ: {response.text}")
-            return True
+            res_data = response.json()
+            file_id = res_data.get("id")
+            logging.info(f"Файл {filename} успешно импортирован, получен ID: {file_id}")
+            
+        # Шаг 2: Если задан ID базы знаний, прикрепляем файл к ней
+        if OPEN_WEBUI_KNOWLEDGE_ID and file_id:
+            logging.info(f"Привязка файла {filename} к базе знаний {OPEN_WEBUI_KNOWLEDGE_ID}...")
+            link_url = f"{base_url}/api/v1/knowledge/{OPEN_WEBUI_KNOWLEDGE_ID}/file/add"
+            link_headers = {
+                "Authorization": f"Bearer {OPEN_WEBUI_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            link_payload = {
+                "file_id": file_id
+            }
+            link_response = requests.post(link_url, headers=link_headers, json=link_payload, timeout=30)
+            link_response.raise_for_status()
+            logging.info(f"Файл {filename} успешно добавлен в базу знаний!")
+            
+        return True
     except Exception as e:
-        logging.error(f"Ошибка загрузки в Open WebUI для файла {filename}: {e}")
+        logging.error(f"Ошибка загрузки/привязки в Open WebUI для файла {filename}: {e}")
         return False
 
 def download_file(url, filepath):
@@ -153,14 +172,12 @@ def process_month_page(month_url, year_str):
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
                 
-            # Загружаем только легкую текстовую карточку (.md) в Open WebUI
             upload_to_open_webui(md_path)
 
 def main():
     logging.info("Старт синхронизации с Open WebUI...")
     years = parse_years()
     
-    # Ограничиваемся только 2025 и 2026 годами
     ALLOWED_YEARS = ['2025', '2026']
     filtered_years = [y for y in years if y[0] in ALLOWED_YEARS]
     
