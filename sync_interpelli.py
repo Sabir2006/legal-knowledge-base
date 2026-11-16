@@ -19,8 +19,8 @@ MONTHS_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
              'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
 # Получаем переменные из секретов GitHub
-DIFY_API_KEY = os.environ.get("DIFY_API_KEY")
-DIFY_DATASET_ID = os.environ.get("DIFY_DATASET_ID")
+COZE_API_KEY = os.environ.get("COZE_API_KEY")
+COZE_DATASET_ID = os.environ.get("COZE_DATASET_ID")
 
 def get_soup(url):
     try:
@@ -31,44 +31,77 @@ def get_soup(url):
         logging.error(f"Не удалось загрузить {url}: {e}")
         return None
 
-def upload_to_dify(filepath):
-    if not DIFY_API_KEY or not DIFY_DATASET_ID:
-        logging.warning("Dify API Key или Dataset ID не заданы. Пропуск загрузки в облако.")
+def upload_to_coze(filepath):
+    if not COZE_API_KEY or not COZE_DATASET_ID:
+        logging.warning("COZE_API_KEY или COZE_DATASET_ID не заданы. Пропуск загрузки в Coze.")
         return False
         
-    url = f"https://api.dify.ai/v1/datasets/{DIFY_DATASET_ID}/document/create_by_file"
-    headers = {
-        "Authorization": f"Bearer {DIFY_API_KEY}"
-    }
-    
-    data_payload = {
-        "indexing_technique": "high_quality",
-        "process_rule": {
-            "mode": "automatic"
-        }
-    }
-    
     filename = os.path.basename(filepath)
-    logging.info(f"Загрузка {filename} в Dify.ai...")
+    logging.info(f"Загрузка {filename} в Coze.com...")
     
     try:
+        # Шаг 1: Загружаем файл во временное файловое хранилище Coze
+        upload_url = "https://api.coze.com/open_api/v1/files/upload"
+        upload_headers = {
+            "Authorization": f"Bearer {COZE_API_KEY}"
+        }
+        
         with open(filepath, 'rb') as f:
-            files = {
-                'file': (filename, f, 'application/pdf' if filename.endswith('.pdf') else 'text/markdown'),
-                'data': (None, json.dumps(data_payload), 'application/json')
+            upload_files = {
+                'file': (filename, f, 'text/markdown' if filename.endswith('.md') else 'application/pdf')
             }
-            response = requests.post(url, headers=headers, files=files, timeout=60)
+            response = requests.post(upload_url, headers=upload_headers, files=upload_files, timeout=60)
             response.raise_for_status()
-            logging.info(f"Успешно загружено в Dify! Ответ: {response.text}")
-            return True
+            res_data = response.json()
+            
+            if res_data.get("code") != 0:
+                logging.error(f"Ошибка загрузки файла в хранилище Coze: {res_data.get('msg')}")
+                return False
+                
+            file_id = res_data["data"]["id"]
+            logging.info(f"Файл успешно загружен в Coze, получен ID: {file_id}")
+            
+        # Шаг 2: Привязываем загруженный файл к нашей базе знаний (Dataset)
+        create_url = "https://api.coze.com/open_api/v1/dataset/document/create"
+        create_headers = {
+            "Authorization": f"Bearer {COZE_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        create_payload = {
+            "dataset_id": COZE_DATASET_ID,
+            "document_bases": [
+                {
+                    "name": filename,
+                    "source_info": {
+                        "type": 1,  # 1 означает локальный файл
+                        "file_id": file_id
+                    }
+                }
+            ],
+            "chunk_strategy": {
+                "chunk_type": 0  # 0 означает автоматическое разбиение на чанки
+            }
+        }
+        
+        create_response = requests.post(create_url, headers=create_headers, json=create_payload, timeout=30)
+        create_response.raise_for_status()
+        create_res_data = create_response.json()
+        
+        if create_res_data.get("code") != 0:
+            logging.error(f"Не удалось привязать файл к базе знаний Coze: {create_res_data.get('msg')}")
+            return False
+            
+        logging.info(f"Файл {filename} успешно импортирован в базу знаний Coze!")
+        return True
+        
     except Exception as e:
-        logging.error(f"Ошибка при загрузке {filename} в Dify: {e}")
+        logging.error(f"Ошибка интеграции с Coze для файла {filename}: {e}")
         return False
 
 def download_file(url, filepath):
-    # Если файл уже есть локально, возвращаем True (скачивать не надо, загружать в Dify тоже, так как он там уже есть)
     if os.path.exists(filepath):
-        return True, False  # (успех, но файл старый)
+        return True, False
     
     logging.info(f"Скачивание PDF: {url} -> {filepath}")
     try:
@@ -79,7 +112,7 @@ def download_file(url, filepath):
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
         time.sleep(0.5)
-        return True, True  # (успех, файл новый!)
+        return True, True
     except Exception as e:
         logging.error(f"Ошибка при скачивании {url}: {e}")
         return False, False
@@ -110,7 +143,7 @@ def parse_months(year_url):
         if href and any(m in text for m in MONTHS_IT):
             if any(kw in href.lower() for kw in ['interpelli', 'risposte-interpello', 'giugno-2019', '/portale/']):
                 month_links.append(urljoin(year_url, href))
-    return list(dict.fromkeys(month_links)) # удаление дубликатов
+    return list(dict.fromkeys(month_links))
 
 def process_month_page(month_url, year_str):
     soup = get_soup(month_url)
@@ -143,10 +176,8 @@ def process_month_page(month_url, year_str):
         pdf_path = os.path.join(year_dir, pdf_filename)
         md_path = os.path.join(year_dir, md_filename)
         
-         # Скачиваем файл (чтобы оригинальный PDF лежал у нас в репозитории GitHub)
         download_success, is_new = download_file(pdf_url, pdf_path)
         
-        # Если файл НОВЫЙ — мы создаем .md и загружаем его в Dify
         if download_success and is_new:
             md_content = f"""# Risposta n. {num} del {date_str}
 **Data:** {date_str}  
@@ -162,15 +193,19 @@ def process_month_page(month_url, year_str):
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
                 
-            # Загружаем ТОЛЬКО текстовый .md файл в Dify (быстро, легко и точно для поиска)
-            upload_to_dify(md_path)
+            # Загружаем ТОЛЬКО текстовый карточку (.md) в базу знаний Coze
+            upload_to_coze(md_path)
+
 def main():
-    logging.info("Старт синхронизации...")
+    logging.info("Старт синхронизации с Coze...")
     years = parse_years()
-    # Сначала проверяем только актуальный год (2025/2026), чтобы не качать гигабайты старых данных
-    # Если хочешь загрузить прошлые года, можно обработать весь массив years
-    for year_str, year_url in years:
-        logging.info(f"Проверка {year_str} года...")
+    
+    # Ограничиваемся только 2025 и 2026 годами (свежие данные)
+    ALLOWED_YEARS = ['2025', '2026']
+    filtered_years = [y for y in years if y[0] in ALLOWED_YEARS]
+    
+    for year_str, year_url in filtered_years:
+        logging.info(f"=== Проверка {year_str} года ===")
         months = parse_months(year_url)
         for month_url in months:
             process_month_page(month_url, year_str)
