@@ -40,8 +40,8 @@ def upload_to_coze(filepath):
     logging.info(f"Загрузка {filename} в Coze.com...")
     
     try:
-        # Шаг 1: Загружаем файл во временное файловое хранилище Coze
-        upload_url = "https://api.coze.com/open_api/v1/files/upload"
+        # Шаг 1: Загружаем файл во временное файловое хранилище Coze (БЕЗ /open_api)
+        upload_url = "https://api.coze.com/v1/files/upload"
         upload_headers = {
             "Authorization": f"Bearer {COZE_API_KEY}"
         }
@@ -62,7 +62,7 @@ def upload_to_coze(filepath):
             logging.info(f"Файл успешно загружен в Coze, получен ID: {file_id}")
             
         # Шаг 2: Привязываем загруженный файл к нашей базе знаний (Dataset)
-        create_url = "https://api.coze.com/open_api/v1/dataset/document/create"
+        create_url = "https://api.coze.com/v1/datasets/document/create"
         create_headers = {
             "Authorization": f"Bearer {COZE_API_KEY}",
             "Content-Type": "application/json"
@@ -193,14 +193,14 @@ def process_month_page(month_url, year_str):
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
                 
-            # Загружаем ТОЛЬКО текстовый карточку (.md) в базу знаний Coze
+            # Загружаем только легкую текстовую карточку (.md) в базу знаний Coze
             upload_to_coze(md_path)
 
 def main():
     logging.info("Старт синхронизации с Coze...")
     years = parse_years()
     
-    # Ограничиваемся только 2025 и 2026 годами (свежие данные)
+    # Ограничиваемся 2025 и 2026 годами (самое свежее)
     ALLOWED_YEARS = ['2025', '2026']
     filtered_years = [y for y in years if y[0] in ALLOWED_YEARS]
     
