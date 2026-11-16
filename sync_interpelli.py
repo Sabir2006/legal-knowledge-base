@@ -40,7 +40,7 @@ def upload_to_open_webui(filepath):
     
     # Стыкуем URL API Open WebUI
     base_url = OPEN_WEBUI_URL.rstrip('/')
-    url = f"{base_url}/api/v1/documents/"
+    url = f"{base_url}/api/v1/files/"
     
     headers = {
         "Authorization": f"Bearer {OPEN_WEBUI_API_KEY}"
