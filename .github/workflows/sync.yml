@@ -26,10 +26,9 @@ jobs:
           pip install requests beautifulsoup4
 
       - name: Run sync script
-        # Передаем секреты из настроек репозитория в переменные среды скрипта
         env:
-          DIFY_API_KEY: ${{ secrets.DIFY_API_KEY }}
-          DIFY_DATASET_ID: ${{ secrets.DIFY_DATASET_ID }}
+          COZE_API_KEY: ${{ secrets.COZE_API_KEY }}
+          COZE_DATASET_ID: ${{ secrets.COZE_DATASET_ID }}
         run: python sync_interpelli.py
 
       - name: Commit and push changes
