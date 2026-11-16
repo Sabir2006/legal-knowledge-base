@@ -40,7 +40,7 @@ def upload_to_coze(filepath):
     logging.info(f"Загрузка {filename} в Coze.com...")
     
     try:
-        # Шаг 1: Загружаем файл во временное файловое хранилище Coze (БЕЗ /open_api)
+        # Шаг 1: Загружаем файл во временное файловое хранилище Coze
         upload_url = "https://api.coze.com/v1/files/upload"
         upload_headers = {
             "Authorization": f"Bearer {COZE_API_KEY}"
@@ -61,15 +61,15 @@ def upload_to_coze(filepath):
             file_id = res_data["data"]["id"]
             logging.info(f"Файл успешно загружен в Coze, получен ID: {file_id}")
             
-        # Шаг 2: Привязываем загруженный файл к нашей базе знаний (Dataset)
-        create_url = "https://api.coze.com/open_api/v1/dataset/document/create"
+        # Шаг 2: Привязываем загруженный файл к базе знаний по новому REST API
+        # Передаем COZE_DATASET_ID прямо в URL пути!
+        create_url = f"https://api.coze.com/v1/datasets/7708784089075925045/documents"
         create_headers = {
             "Authorization": f"Bearer {COZE_API_KEY}",
             "Content-Type": "application/json"
         }
         
         create_payload = {
-            "dataset_id": COZE_DATASET_ID,
             "document_bases": [
                 {
                     "name": filename,
