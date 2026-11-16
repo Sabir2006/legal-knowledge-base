@@ -4,8 +4,14 @@ on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
+
 permissions:
   contents: write
+
+concurrency:
+  group: update-legal-documents
+  cancel-in-progress: false
+
 jobs:
   update-documents:
     runs-on: ubuntu-latest
