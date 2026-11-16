@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import json
 import logging
 from urllib.parse import urljoin
 import requests
@@ -19,8 +18,8 @@ MONTHS_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
              'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
 # Получаем переменные из секретов GitHub
-COZE_API_KEY = os.environ.get("COZE_API_KEY")
-COZE_DATASET_ID = os.environ.get("COZE_DATASET_ID")
+OPEN_WEBUI_API_KEY = os.environ.get("OPEN_WEBUI_API_KEY")
+OPEN_WEBUI_URL = os.environ.get("OPEN_WEBUI_URL")
 
 def get_soup(url):
     try:
@@ -31,72 +30,33 @@ def get_soup(url):
         logging.error(f"Не удалось загрузить {url}: {e}")
         return None
 
-def upload_to_coze(filepath):
-    if not COZE_API_KEY or not COZE_DATASET_ID:
-        logging.warning("COZE_API_KEY или COZE_DATASET_ID не заданы. Пропуск загрузки в Coze.")
+def upload_to_open_webui(filepath):
+    if not OPEN_WEBUI_API_KEY or not OPEN_WEBUI_URL:
+        logging.warning("OPEN_WEBUI_API_KEY или OPEN_WEBUI_URL не заданы. Пропуск загрузки в Open WebUI.")
         return False
         
     filename = os.path.basename(filepath)
-    logging.info(f"Загрузка {filename} в Coze.com...")
+    logging.info(f"Отправка {filename} в Open WebUI...")
+    
+    # Стыкуем URL API Open WebUI
+    base_url = OPEN_WEBUI_URL.rstrip('/')
+    url = f"{base_url}/api/v1/documents/"
+    
+    headers = {
+        "Authorization": f"Bearer {OPEN_WEBUI_API_KEY}"
+    }
     
     try:
-        # Шаг 1: Загружаем файл во временное файловое хранилище Coze
-        upload_url = "https://api.coze.com/v1/files/upload"
-        upload_headers = {
-            "Authorization": f"Bearer {COZE_API_KEY}"
-        }
-        
         with open(filepath, 'rb') as f:
-            upload_files = {
+            files = {
                 'file': (filename, f, 'text/markdown' if filename.endswith('.md') else 'application/pdf')
             }
-            response = requests.post(upload_url, headers=upload_headers, files=upload_files, timeout=60)
+            response = requests.post(url, headers=headers, files=files, timeout=60)
             response.raise_for_status()
-            res_data = response.json()
-            
-            if res_data.get("code") != 0:
-                logging.error(f"Ошибка загрузки файла в хранилище Coze: {res_data.get('msg')}")
-                return False
-                
-            file_id = res_data["data"]["id"]
-            logging.info(f"Файл успешно загружен в Coze, получен ID: {file_id}")
-            
-        # Шаг 2: Привязываем загруженный файл к базе знаний (Официальный RPC API)
-        create_url = "https://api.coze.com/open_api/v1/dataset/document/create"
-        create_headers = {
-            "Authorization": f"Bearer {COZE_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        create_payload = {
-            "dataset_id": COZE_DATASET_ID,
-            "document_bases": [
-                {
-                    "name": filename,
-                    "source_info": {
-                        "type": 1,  # 1 означает локальный файл
-                        "file_id": file_id
-                    }
-                }
-            ],
-            "chunk_strategy": {
-                "chunk_type": 0  # 0 означает автоматическое разбиение на чанки
-            }
-        }
-        
-        create_response = requests.post(create_url, headers=create_headers, json=create_payload, timeout=30)
-        create_response.raise_for_status()
-        create_res_data = create_response.json()
-        
-        if create_res_data.get("code") != 0:
-            logging.error(f"Не удалось привязать файл к базе знаний Coze: {create_res_data.get('msg')}")
-            return False
-            
-        logging.info(f"Файл {filename} успешно импортирован в базу знаний Coze!")
-        return True
-        
+            logging.info(f"Файл {filename} успешно импортирован в Open WebUI! Ответ: {response.text}")
+            return True
     except Exception as e:
-        logging.error(f"Ошибка интеграции с Coze для файла {filename}: {e}")
+        logging.error(f"Ошибка загрузки в Open WebUI для файла {filename}: {e}")
         return False
 
 def download_file(url, filepath):
@@ -193,13 +153,14 @@ def process_month_page(month_url, year_str):
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
                 
-            upload_to_coze(md_path)
+            # Загружаем только легкую текстовую карточку (.md) в Open WebUI
+            upload_to_open_webui(md_path)
 
 def main():
-    logging.info("Старт синхронизации с Coze...")
+    logging.info("Старт синхронизации с Open WebUI...")
     years = parse_years()
     
-    # Ограничиваемся только свежими 2025 и 2026 годами
+    # Ограничиваемся только 2025 и 2026 годами
     ALLOWED_YEARS = ['2025', '2026']
     filtered_years = [y for y in years if y[0] in ALLOWED_YEARS]
     
