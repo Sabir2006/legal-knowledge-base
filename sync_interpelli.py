@@ -143,7 +143,7 @@ def process_month_page(month_url, year_str):
         pdf_path = os.path.join(year_dir, pdf_filename)
         md_path = os.path.join(year_dir, md_filename)
         
-        # Скачиваем файл
+         # Скачиваем файл (чтобы оригинальный PDF лежал у нас в репозитории GitHub)
         download_success, is_new = download_file(pdf_url, pdf_path)
         
         # Если файл НОВЫЙ — мы создаем .md и загружаем его в Dify
@@ -162,11 +162,8 @@ def process_month_page(month_url, year_str):
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
                 
-            # Загружаем PDF в облако Dify
-            upload_to_dify(pdf_path)
-            # Также загружаем текстовый .md файл (Dify проиндексирует и его, увеличив точность RAG)
+            # Загружаем ТОЛЬКО текстовый .md файл в Dify (быстро, легко и точно для поиска)
             upload_to_dify(md_path)
-
 def main():
     logging.info("Старт синхронизации...")
     years = parse_years()
