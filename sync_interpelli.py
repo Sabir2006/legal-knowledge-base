@@ -62,7 +62,7 @@ def upload_to_coze(filepath):
             logging.info(f"Файл успешно загружен в Coze, получен ID: {file_id}")
             
         # Шаг 2: Привязываем загруженный файл к нашей базе знаний (Dataset)
-        create_url = "https://api.coze.com/v1/dataset/document/create"
+        create_url = "https://api.coze.com/open_api/v1/dataset/document/create"
         create_headers = {
             "Authorization": f"Bearer {COZE_API_KEY}",
             "Content-Type": "application/json"
