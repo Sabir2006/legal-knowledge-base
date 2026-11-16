@@ -61,15 +61,15 @@ def upload_to_coze(filepath):
             file_id = res_data["data"]["id"]
             logging.info(f"Файл успешно загружен в Coze, получен ID: {file_id}")
             
-        # Шаг 2: Привязываем загруженный файл к базе знаний по новому REST API
-        # Передаем COZE_DATASET_ID прямо в URL пути!
-        create_url = f"https://api.coze.com/open_api/v1/datasets/{COZE_DATASET_ID}/documents"
+        # Шаг 2: Привязываем загруженный файл к базе знаний (Официальный RPC API)
+        create_url = "https://api.coze.com/open_api/v1/dataset/document/create"
         create_headers = {
             "Authorization": f"Bearer {COZE_API_KEY}",
             "Content-Type": "application/json"
         }
         
         create_payload = {
+            "dataset_id": COZE_DATASET_ID,
             "document_bases": [
                 {
                     "name": filename,
@@ -193,14 +193,13 @@ def process_month_page(month_url, year_str):
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
                 
-            # Загружаем только легкую текстовую карточку (.md) в базу знаний Coze
             upload_to_coze(md_path)
 
 def main():
     logging.info("Старт синхронизации с Coze...")
     years = parse_years()
     
-    # Ограничиваемся 2025 и 2026 годами (самое свежее)
+    # Ограничиваемся только свежими 2025 и 2026 годами
     ALLOWED_YEARS = ['2025', '2026']
     filtered_years = [y for y in years if y[0] in ALLOWED_YEARS]
     
