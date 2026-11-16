@@ -27,8 +27,8 @@ jobs:
 
       - name: Run sync script
         env:
-          COZE_API_KEY: ${{ secrets.COZE_API_KEY }}
-          COZE_DATASET_ID: ${{ secrets.COZE_DATASET_ID }}
+          OPEN_WEBUI_API_KEY: ${{ secrets.OPEN_WEBUI_API_KEY }}
+          OPEN_WEBUI_URL: ${{ secrets.OPEN_WEBUI_URL }}
         run: python sync_interpelli.py
 
       - name: Commit and push changes
