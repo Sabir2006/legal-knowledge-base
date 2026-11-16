@@ -1,0 +1,43 @@
+name: Update legal documents
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update-documents:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download new PDFs
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: python scraper.py
+
+      - name: Commit and push new documents
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ -n "$(git status --porcelain documents)" ]; then
+            git add documents
+            git commit -m "Update legal documents"
+            git push
+          else
+            echo "No new documents found"
+          fi

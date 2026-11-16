@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Secrets and Google credentials
+.env
+credentials.json
+token.json
+service-account.json
+*.pem
+
+# System files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
