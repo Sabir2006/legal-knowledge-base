@@ -63,7 +63,7 @@ def upload_to_coze(filepath):
             
         # Шаг 2: Привязываем загруженный файл к базе знаний по новому REST API
         # Передаем COZE_DATASET_ID прямо в URL пути!
-        create_url = f"https://api.coze.com/v1/datasets/7708784089075925045/documents"
+        create_url = f"https://api.coze.com/open_api/v1/datasets/{COZE_DATASET_ID}/documents"
         create_headers = {
             "Authorization": f"Bearer {COZE_API_KEY}",
             "Content-Type": "application/json"
