@@ -5,6 +5,7 @@ import logging
 from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
+from pypdf import PdfReader  # Подключаем библиотеку для чтения PDF
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -30,6 +31,20 @@ def get_soup(url):
     except Exception as e:
         logging.error(f"Не удалось загрузить {url}: {e}")
         return None
+
+def extract_text_from_pdf(pdf_path):
+    logging.info(f"Извлечение текста из PDF: {pdf_path}")
+    try:
+        reader = PdfReader(pdf_path)
+        text_chunks = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text_chunks.append(page_text)
+        return "\n".join(text_chunks)
+    except Exception as e:
+        logging.error(f"Не удалось извлечь текст из PDF {pdf_path}: {e}")
+        return ""
 
 def upload_to_open_webui(filepath):
     if not OPEN_WEBUI_API_KEY or not OPEN_WEBUI_URL:
@@ -141,7 +156,7 @@ def process_month_page(month_url, year_str):
         raw_title = a_tag.get_text(strip=True)
         
         num_match = re.search(r'n\.\s*(\d+)', meta_text, re.IGNORECASE)
-        date_match = re.search(r'del\s+(\d{2}/\d{2}/\d{4})', meta_text, re.IGNORECASE)
+        date_match = re.search(r'del\s+(\d{1,2}/\d{1,2}/\d{4})', meta_text, re.IGNORECASE)
         num = num_match.group(1) if num_match else "unknown"
         date_str = date_match.group(1) if date_match else "unknown"
         
@@ -155,9 +170,13 @@ def process_month_page(month_url, year_str):
         pdf_path = os.path.join(year_dir, pdf_filename)
         md_path = os.path.join(year_dir, md_filename)
         
+        # Скачиваем оригинальный PDF
         download_success, is_new = download_file(pdf_url, pdf_path)
         
         if download_success and is_new:
+            # Извлекаем ПОЛНЫЙ текст из скачанного PDF
+            full_pdf_text = extract_text_from_pdf(pdf_path)
+            
             md_content = f"""# Risposta n. {num} del {date_str}
 **Data:** {date_str}  
 **Numero:** {num}  
@@ -166,12 +185,16 @@ def process_month_page(month_url, year_str):
 ### Descrizione:
 {clean_title}
 
-### Link:
+### Contenuto Integrale del Documento:
+{full_pdf_text}
+
+### Link Originale:
 * [Original PDF]({pdf_url})
 """
             with open(md_path, 'w', encoding='utf-8') as f:
                 f.write(md_content)
                 
+            # Загружаем ОПТИМИЗИРОВАННЫЙ .md файл с ПОЛНЫМ ТЕКСТОМ в Open WebUI!
             upload_to_open_webui(md_path)
 
 def main():
