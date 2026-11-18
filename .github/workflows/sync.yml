@@ -23,13 +23,17 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          pip install requests beautifulsoup4 pypdf
 
       - name: Run sync script
+        env:
+          OPEN_WEBUI_API_KEY: ${{ secrets.OPEN_WEBUI_API_KEY }}
+          OPEN_WEBUI_URL: ${{ secrets.OPEN_WEBUI_URL }}
+          OPEN_WEBUI_KNOWLEDGE_ID: ${{ secrets.OPEN_WEBUI_KNOWLEDGE_ID }}
         run: python sync_interpelli.py
 
       - name: Commit and push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Auto-sync: добавлены новые документы"
+          commit_message: "Auto-sync: сгенерирован полный текст в MD"
           file_pattern: "interpelli/**"
